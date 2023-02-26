@@ -16,7 +16,11 @@ Y = []
 Z = []
 for line in d:
     line = line.replace('(', '').replace(')', '')
-    x, y, z = line.split()
+    try:
+        x, y, z = line.split()
+    except ValueError:
+        # If there aren't enough values to unpack, then skip the line
+        continue
     X.append(float(x))
     Y.append(float(y))
     Z.append(float(z))
