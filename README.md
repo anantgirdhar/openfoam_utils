@@ -1,7 +1,4 @@
-# OpenFOAM Utilities
+# OpenFOAM and Research Utilities and Scripts
 
-Utilities that may be helpful with OpenFOAM (maybe?)
-
-The easiest way to use these utilities might be to add this directory to your
-\$PATH and then run them from the same directory that contains the files that
-they operate on.
+An assortment of scripts, utilities, and other (hopefully) useful things that
+I've used while doing research.
