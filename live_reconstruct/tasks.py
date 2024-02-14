@@ -27,7 +27,10 @@ def timestamp_successfully_reconstructed(timestamp: str) -> bool:
     reconstruction_done_marker_filepath = (
         Path(timestamp) / RECONSTRUCTION_DONE_MARKER_FILENAME
     )
-    return reconstruction_done_marker_filepath.is_file()
+    return (
+        tarring_successfully_completed(timestamp)
+        or reconstruction_done_marker_filepath.is_file()
+    )
 
 
 def tarring_successfully_completed(timestamp: str) -> bool:
