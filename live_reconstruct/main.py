@@ -49,7 +49,11 @@ def initiate_incomplete_tasks_from_last_run(task_queue: TaskQueue) -> None:
             elif timestamp_successfully_reconstructed(timestamp):
                 task_queue.add(TarTask(timestamp, post_cleanup=True))
             else:
-                task_queue.add(ReconstructTask(timestamp, post_cleanup=True))
+                # If we get here, this timestamp needs to be reconstructed
+                # But that should get started when we start looping through the
+                # split timesteps so don't do anything here
+                # task_queue.add(ReconstructTask(timestamp, post_cleanup=True))
+                pass
 
 
 def in_openfoam_root_case_dir() -> bool:
