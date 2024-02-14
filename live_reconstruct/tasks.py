@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
+RECONSTRUCTION_DONE_MARKER_FILENAME = ".__reconstruction_done"
+
 
 def reconstructed_timestamp_successfully_deleted(timestamp: str) -> bool:
     if Path(f"{timestamp}").is_dir():
@@ -22,17 +24,10 @@ def split_timestamp_successfully_deleted(timestamp: str) -> bool:
 
 
 def timestamp_successfully_reconstructed(timestamp: str) -> bool:
-    # I'm going to say a timestamp is successfully reconstructed if either:
-    # - The reconstructed timestamp is marked done, OR
-    # - The corresponding tar / tar.inprogress files exist
-    if Path(f"{timestamp}.done").is_dir():
-        return True
-    elif Path(f"{timestamp}.tar.inprogress").is_file():
-        return True
-    elif Path(f"{timestamp}.tar").is_file():
-        return True
-    else:
-        return False
+    reconstruction_done_marker_filepath = (
+        Path(timestamp) / RECONSTRUCTION_DONE_MARKER_FILENAME
+    )
+    return reconstruction_done_marker_filepath.is_file()
 
 
 def tarring_successfully_completed(timestamp: str) -> bool:
@@ -112,10 +107,13 @@ class ReconstructTask(Task):
 
     @property
     def command(self) -> str:
+        reconstruction_done_marker_filepath = (
+            Path(self.timestamp) / RECONSTRUCTION_DONE_MARKER_FILENAME
+        )
         return " && ".join(
             [
                 f"reconstructPar -time {self.timestamp}",
-                f"mv {self.timestamp} {self.timestamp}.done",
+                f"touch {reconstruction_done_marker_filepath}",
             ]
         )
 
@@ -161,10 +159,16 @@ class TarTask(Task):
 
     @property
     def command(self) -> str:
+        reconstruction_done_marker_filepath = (
+            Path(self.timestamp) / RECONSTRUCTION_DONE_MARKER_FILENAME
+        )
+        tar_command = (
+            f"tar --exclude {reconstruction_done_marker_filepath} "
+            + f"-cvf {self.timestamp}.tar.inprogress {self.timestamp}"
+        )
         return " && ".join(
             [
-                f"mv {self.timestamp}.done {self.timestamp}",
-                f"tar -cvf {self.timestamp}.tar.inprogress {self.timestamp}",
+                tar_command,
                 f"mv {self.timestamp}.tar.inprogress {self.timestamp}.tar",
             ]
         )
