@@ -1,11 +1,14 @@
 #!/usr/bin/python3
 
+import subprocess
 import time
 from decimal import Decimal
 from pathlib import Path
 
 from taskqueue import TaskQueue
-from tasks import DeleteSplitTask, ReconstructTask
+from tasks import (DeleteReconstructedTask, DeleteSplitTask, ReconstructTask,
+                   TarTask, tarring_successfully_completed,
+                   timestamp_successfully_reconstructed)
 
 
 def is_to_be_deleted(t: str) -> bool:
@@ -21,6 +24,32 @@ def is_to_be_deleted(t: str) -> bool:
         return True
     else:
         return False
+
+
+def initiate_incomplete_tasks_from_last_run(task_queue: TaskQueue) -> None:
+    for path in Path(".").glob("[0-9]*"):
+        if path.name.endswith(".tar"):
+            # This is a finished tar
+            # No need to do anything
+            pass
+        if path.name.endswith(".tar.inprogress"):
+            # If there is a half constructed tar, just delete it and start over
+            # We should be able to assume that the time dir still exists
+            # because if it didn't, the tar would have been fully constructed
+            subprocess.Popen(f"rm {path}", shell=True)
+            timestamp = path.stem
+            task_queue.add(TarTask(timestamp, post_cleanup=True))
+        if path.is_dir():
+            # Make sure that there are no half-deleted reconstructed folders
+            # If the timestamp has been tarred, then delete it
+            # TODO: Build out these cases
+            timestamp = path.name
+            if tarring_successfully_completed(timestamp):
+                task_queue.add(DeleteReconstructedTask(timestamp))
+            elif timestamp_successfully_reconstructed(timestamp):
+                task_queue.add(TarTask(timestamp, post_cleanup=True))
+            else:
+                task_queue.add(ReconstructTask(timestamp, post_cleanup=True))
 
 
 def in_openfoam_root_case_dir() -> bool:
@@ -41,6 +70,7 @@ def main() -> None:
     if not in_openfoam_root_case_dir():
         raise Exception("This is not an OpenFOAM root case dir.")
     task_queue = TaskQueue()
+    initiate_incomplete_tasks_from_last_run(task_queue)
     times = sorted(
         [d.name for d in Path("processor0").glob("[0-9]*") if d.is_dir()],
         key=float,
