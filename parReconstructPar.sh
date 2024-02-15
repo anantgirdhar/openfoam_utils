@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -e
+
 echo "
       K. Wardle 6/22/09, modified by H. Stadler Dec. 2013, minor fix Will Bateman Sep 2014.
       Further modified by Anant Girdhar December 2023.
@@ -146,7 +149,7 @@ PIDS=""
 for i in $(seq $NPROCS); do
   if [ $extraTimes -ge 1 ]; then
     nHighProc=$(( $nLowProc + $timesPerProc ))
-    let extraTimes=$extraTimes-1
+    extraTimes=$(( $extraTimes - 1 ))
   else
     nHighProc=$(( $nLowProc + $timesPerProc - 1 ))
   fi
@@ -158,7 +161,7 @@ for i in $(seq $NPROCS); do
     $($APPNAME -time $tLowProc:$tHighProc > $TEMPDIR/output-$i &)
   fi
   PIDS="$PIDS $(pgrep -n -x $APPNAME)"  # Get the PID of the latest (-n) job exactly matching (-x) $APPNAME
-  let nLowProc=$nHighProc+1
+  nLowProc=$(( $nHighProc + 1 ))
   tLowProc=$(ls processor0 -1v | sed '/constant/d' | sort -g | sed -n "$nLowProc"p)
 done
 
