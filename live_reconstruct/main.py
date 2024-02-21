@@ -5,7 +5,7 @@ import sys
 import time
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 
 from taskqueue import TaskQueue
 from tasks import (DeleteReconstructedTask, DeleteSplitTask, ReconstructTask,
@@ -83,9 +83,9 @@ def in_openfoam_root_case_dir() -> bool:
 
 def find_and_add_tasks(
     task_queue: TaskQueue,
-    processed_times: list[str],
+    processed_times: List[str],
     is_to_be_deleted: Callable[[str], bool],
-) -> list[str]:
+) -> List[str]:
     times_found = sorted(
         [d.name for d in Path("processor0").glob("[0-9]*") if d.is_dir()],
         key=float,
