@@ -109,13 +109,14 @@ def find_and_add_tasks(
 
 def main(
     keep_every: str,
+    num_simultaneous_tasks: int = 6,
     sleep_time_per_update: int = 2,
     recheck_every_num_updates: int = 1,
 ) -> None:
     num_updates = 0
     if not in_openfoam_root_case_dir():
         raise Exception("This is not an OpenFOAM root case dir.")
-    task_queue = TaskQueue()
+    task_queue = TaskQueue(num_simultaneous_tasks=num_simultaneous_tasks)
     initiate_incomplete_tasks_from_last_run(task_queue)
     processed_times: list[str] = []
     is_to_be_deleted = create_deletion_condition_function(keep_every)
@@ -141,15 +142,22 @@ def main(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         print(
             f"Usage: {sys.argv[0]}"
             " keep_every"
+            " num_simultaneous_tasks"
             " sleep_time_per_update"
             " [recheck_every_num_updates]"
         )
         sys.exit(-1)
     keep_every = sys.argv[1]
-    sleep_time_per_update = int(sys.argv[2])
-    recheck_every_num_updates = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-    main(keep_every, sleep_time_per_update, recheck_every_num_updates)
+    num_simultaneous_tasks = int(sys.argv[2])
+    sleep_time_per_update = int(sys.argv[3])
+    recheck_every_num_updates = int(sys.argv[4]) if len(sys.argv) > 4 else 1
+    main(
+        keep_every,
+        num_simultaneous_tasks,
+        sleep_time_per_update,
+        recheck_every_num_updates,
+    )
