@@ -16,4 +16,4 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=<ENTER_EMAIL_HERE>
 
-source <ENTER_PAYLOAD_SCRIPT_HERE>
+source ~/bin/openfoam_utils/sbatch_files/openfoam.payload
