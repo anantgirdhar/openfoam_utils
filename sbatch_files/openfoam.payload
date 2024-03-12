@@ -9,15 +9,9 @@ source ~/bin/modules/of2112.slurm
 module load anaconda3
 
 [ ! -d processor0 ] && decomposePar
-if [ ! -d processor0 ]; then
-  decomposePar
-else
-  ./cleanup.sh
-fi
 
 #mv outfile "outfile."$(date +%y%m%d%H%M)
 solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
 numSubdomains=$(grep '^numberOfSubdomains' system/decomposeParDict | sed 's/numberOfSubdomains\s*\(.*\);/\1/')
-#mpirun -np $numSubdomains $solver -parallel | tee "log.$(date +%y%m%d%H%M)"
-#python -u ~/bin/openfoam_utils/live_reconstruct/main.py 0.2 5 3 > reconstructor.log &
-srun --ntasks=2 $solver -parallel
+python -u ~/bin/openfoam_utils/live_reconstruct/main.py 0.00001 24 10 1 > reconstructor.log."$SLURM_JOB_ID" &
+srun --ntasks=$numSubdomains $solver -parallel
