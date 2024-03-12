@@ -1,4 +1,8 @@
 #!/bin/bash
+set -u
+
+[ -z "$1" ] && simonKeepEvery=0.0001 || simonKeepEvery=$1
+[ -z "$2" ] && simonNumProcs=24 || simonNumProcs=$2
 
 # Go to the appropriate run directory
 cd $SLURM_SUBMIT_DIR
@@ -8,8 +12,23 @@ module purge
 source ~/bin/modules/of2112.slurm
 module load anaconda3
 
+# Extract parameters from the case setup
+solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
+numSubdomains=$(grep '^numberOfSubdomains' system/decomposeParDict | sed 's/numberOfSubdomains\s*\(.*\);/\1/')
+
+# Ensure that there are enough processors available
+if (( $numSubdomains + $simonNumProcs > $SLURM_NTASKS )); then
+  echo "Not enough processors provided."
+  echo "Need:"
+  echo "  - For OpenFOAM: $numSubdomains"
+  echo "  - For simon: $simonNumProcs"
+  echo "  - Total: $(( $numSubdomains + $simonNumProcs ))"
+  echo "Exiting."
+  exit 2
+fi
+
 # Ensure the setup is correct and ready to proceed
-python -u ~/bin/simon/main.py --keep-every 0.00001 --num-simultaneous-tasks 24 --sleep-time-per-update 10 setup > log.reconstructor."$SLURM_JOB_ID"
+python -u ~/bin/simon/main.py --keep-every $simonKeepEvery --num-simultaneous-tasks $simonNumProcs --sleep-time-per-update 10 setup > log.reconstructor."$SLURM_JOB_ID"
 returnValue=$?
 if [ $returnValue -ne 0 ]; then
   echo "ERROR: Could not restore the case to a restartable state."
@@ -18,7 +37,5 @@ fi
 
 [ ! -d processor0 ] && decomposePar
 
-solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
-numSubdomains=$(grep '^numberOfSubdomains' system/decomposeParDict | sed 's/numberOfSubdomains\s*\(.*\);/\1/')
-python -u ~/bin/simon/main.py --keep-every 0.00001 --num-simultaneous-tasks 24 --sleep-time-per-update 10 --recheck-every-num-updates 1 monitor >> log.reconstructor."$SLURM_JOB_ID" &
+python -u ~/bin/simon/main.py --keep-every $simonKeepEvery --num-simultaneous-tasks $simonNumProcs --sleep-time-per-update 10 --recheck-every-num-updates 1 monitor >> log.reconstructor."$SLURM_JOB_ID" &
 srun --ntasks=$numSubdomains $solver -parallel
