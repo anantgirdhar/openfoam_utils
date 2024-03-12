@@ -8,10 +8,11 @@ module purge
 source ~/bin/modules/of2112.slurm
 module load anaconda3
 
+# Ensure the setup is correct and ready to proceed
+python -u ~/bin/simon/main.py --keep-every 0.00001 --num-simultaneous-tasks 24 --sleep-time-per-update 10 setup > log.reconstructor."$SLURM_JOB_ID"
 [ ! -d processor0 ] && decomposePar
 
-#mv outfile "outfile."$(date +%y%m%d%H%M)
 solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
 numSubdomains=$(grep '^numberOfSubdomains' system/decomposeParDict | sed 's/numberOfSubdomains\s*\(.*\);/\1/')
-python -u ~/bin/openfoam_utils/live_reconstruct/main.py 0.00001 24 10 1 > reconstructor.log."$SLURM_JOB_ID" &
+python -u ~/bin/simon/main.py --keep-every 0.00001 --num-simultaneous-tasks 24 --sleep-time-per-update 10 --recheck-every-num-updates 1 monitor >> log.reconstructor."$SLURM_JOB_ID" &
 srun --ntasks=$numSubdomains $solver -parallel
