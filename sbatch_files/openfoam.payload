@@ -9,6 +9,11 @@ source ~/bin/modules/of2112.slurm
 module load anaconda3
 
 [ ! -d processor0 ] && decomposePar
+if [ ! -d processor0 ]; then
+  decomposePar
+else
+  ./cleanup.sh
+fi
 
 #mv outfile "outfile."$(date +%y%m%d%H%M)
 solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
