@@ -1,3 +1,9 @@
+# To use this script
+# - Copy it into your case directory
+# - Fill in the fields
+# - Remove this comment
+# - Run using sbatch
+
 #!/bin/bash
 #SBATCH -J <ENTER_JOB_NAME_HERE>
 #SBATCH -A <ENTER_QUEUE_NAME_HERE>
@@ -10,19 +16,4 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=<ENTER_EMAIL_HERE>
 
-# Go to the appropriate run directory
-cd $SLURM_SUBMIT_DIR
-
-# Source required modules
-module purge
-source ~/bin/modules/of2112.slurm
-module load anaconda3
-
-[ ! -d processor0 ] && decomposePar
-
-#mv outfile "outfile."$(date +%y%m%d%H%M)
-solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
-numSubdomains=$(grep '^numberOfSubdomains' system/decomposeParDict | sed 's/numberOfSubdomains\s*\(.*\);/\1/')
-#mpirun -np $numSubdomains $solver -parallel | tee "log.$(date +%y%m%d%H%M)"
-#python -u ~/bin/openfoam_utils/live_reconstruct/main.py 0.2 5 3 > reconstructor.log &
-srun --ntasks=2 $solver -parallel
+source <ENTER_PAYLOAD_SCRIPT_HERE>
