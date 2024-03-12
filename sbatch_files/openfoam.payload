@@ -10,6 +10,12 @@ module load anaconda3
 
 # Ensure the setup is correct and ready to proceed
 python -u ~/bin/simon/main.py --keep-every 0.00001 --num-simultaneous-tasks 24 --sleep-time-per-update 10 setup > log.reconstructor."$SLURM_JOB_ID"
+returnValue=$?
+if [ $returnValue -ne 0 ]; then
+  echo "ERROR: Could not restore the case to a restartable state."
+  exit $returnValue
+fi
+
 [ ! -d processor0 ] && decomposePar
 
 solver=$(grep '^application' system/controlDict | sed 's/application\s*\(.*\);/\1/')
