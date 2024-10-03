@@ -88,6 +88,7 @@ def read_variable(file_path: Path) -> dict[str, typing.Any]:
 
 def openfoam_to_pickle(
     timestamp: Path,
+    force: bool = False,
 ) -> None:
     solution: dict[str, npt.NDArray[np.float64] | float] = {}
     for var_file in timestamp.iterdir():
@@ -96,7 +97,7 @@ def openfoam_to_pickle(
         var = var_file.name
         solution[var] = read_variable(var_file)
     pickle_filepath = Path(f"./solution_{timestamp}.p")
-    if pickle_filepath.exists():
+    if not force and pickle_filepath.exists():
         raise FileExistsError(f"{pickle_filepath} already exists.")
     with open(pickle_filepath, "wb") as pfile:
         pickle.dump(solution, pfile)
@@ -191,17 +192,19 @@ def _write_openfoam_var_file(
 def pickle_to_openfoam(
     solution_pickle: Path,
     timestamp: Path,
+    auto_merge: bool = False,
 ) -> None:
     with open(solution_pickle, "rb") as pfile:
         data = pickle.load(pfile)
     if timestamp.is_dir():
-        print(
-            f"The directory {timestamp} already exists. "
-            "Would you like to merge the loaded solution in?"
-        )
-        response = input("[y|N]: ")
-        if response.lower() not in ["y", "yes"]:
-            return
+        if not auto_merge:
+            print(
+                f"The directory {timestamp} already exists. "
+                "Would you like to merge the loaded solution in?"
+            )
+            response = input("[y|N]: ")
+            if response.lower() not in ["y", "yes"]:
+                return
     else:
         timestamp.mkdir()
     for var, values in data.items():
