@@ -88,6 +88,7 @@ def read_variable(file_path: Path) -> dict[str, typing.Any]:
 
 def openfoam_to_pickle(
     timestamp: Path,
+    pickle_filepath: Path,
     force: bool = False,
 ) -> None:
     solution: dict[str, npt.NDArray[np.float64] | float] = {}
@@ -96,7 +97,6 @@ def openfoam_to_pickle(
             continue
         var = var_file.name
         solution[var] = read_variable(var_file)
-    pickle_filepath = Path(f"./solution_{timestamp}.p")
     if not force and pickle_filepath.exists():
         raise FileExistsError(f"{pickle_filepath} already exists.")
     with open(pickle_filepath, "wb") as pfile:
