@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 import pickle
+import argparse
 import textwrap
 import typing
 from pathlib import Path
@@ -248,3 +250,84 @@ def pickle_to_openfoam(
             print(f"{var} already exists in {timestamp}. Skipping.")
             continue
         _write_openfoam_var_file(timestamp / var, var, values)
+
+
+def main() -> None:
+
+    parser = argparse.ArgumentParser(
+            prog='rwopenfoam',
+            description='Convert between OpenFOAM and pickle files',
+            )
+    parser.add_argument(
+            '--case-dir',
+            type=Path,
+            default=Path('.'),
+            help='the OpenFOAM case directory',
+            )
+    subparsers = parser.add_subparsers(title='subcommands', dest='command')
+
+    parser_of2p = subparsers.add_parser(
+            'of2p',
+            help='Convert from OpenFOAM to pickle',
+            )
+    parser_of2p.add_argument('timestamp', help='the timestamp to process')
+    parser_of2p.add_argument('pickle', help='the pickle file to write to')
+    parser_of2p.add_argument(
+            '-k',
+            '--kinetics',
+            help='the kinetic model to extract species from',
+            )
+    parser_of2p.add_argument(
+            '-c',
+            '--include-computed',
+            help='include computed quantities',
+            action='store_true',
+            )
+    parser_of2p.add_argument(
+            '-f',
+            '--force',
+            help='overwrite pickle file if it already exists',
+            action='store_true',
+            )
+
+    parser_p2of = subparsers.add_parser(
+            'p2of',
+            help='Convert from pickle to OpenFOAM',
+            )
+    parser_p2of.add_argument('pickle', help='the pickle file to read')
+    parser_p2of.add_argument('timestamp', help='the timestamp to write to')
+    parser_p2of.add_argument(
+            '-m',
+            '--merge',
+            help='merge with directory if directory already exists',
+            action='store_true',
+            )
+
+    args = parser.parse_args()
+    timestamp = args.case_dir / args.timestamp
+    pickle_filepath = args.case_dir / args.pickle
+
+    if args.command == 'of2p':
+        if args.kinetics:
+            kinetic_model_filepath = args.case_dir / args.kinetics
+        else:
+            kinetic_model_filepath = None
+        openfoam_to_pickle(
+                timestamp=timestamp,
+                pickle_filepath=pickle_filepath,
+                kinetic_model_filepath=kinetic_model_filepath,
+                include_computed_quantities=args.include_computed,
+                force=args.force,
+                )
+    elif args.command == 'p2of':
+        pickle_to_openfoam(
+                solution_pickle=pickle_filepath,
+                timestamp=timestamp,
+                auto_merge=args.merge,
+                )
+    else:
+        raise ValueError(f'Unknown command {args.command}')
+
+
+if __name__ == "__main__":
+    main()
