@@ -111,6 +111,7 @@ def openfoam_to_pickle(
     timestamp: Path,
     pickle_filepath: Path,
     kinetic_model_filepath: typing.Optional[Path] = None,
+    include_computed_quantities: bool = False,
     force: bool = False,
 ) -> None:
     solution: dict[str, npt.NDArray[np.float64] | float] = {}
@@ -127,6 +128,8 @@ def openfoam_to_pickle(
         if var_file.is_dir():
             continue
         var = var_file.name
+        if var.endswith("_computed") and not include_computed_quantities:
+            continue
         if species_list and var in species_list:
             var = f"Y_{var}"
         solution[var] = read_variable(var_file)
