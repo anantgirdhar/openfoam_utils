@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
+from tqdm import tqdm
 
 
 def _list_to_dimensions(dimargs: list[str]) -> list[int]:
@@ -252,6 +253,44 @@ def pickle_to_openfoam(
         _write_openfoam_var_file(timestamp / var, var, values)
 
 
+def pickle_all_openfoam_times(
+        case_dir: Path,
+        kinetic_model_filepath: Path,
+        include_computed_quantities: bool = False,
+        pickle_filepath_prefix: str = "ofsolution_",
+        force: bool = False,
+        ):
+    # Create a list of the time directories that need to be processed
+    time_dirs = []
+    for time_dir in case_dir.iterdir():
+        pass
+    # Skip any non-time directories and other files
+        if not time_dir.is_dir():
+            continue
+        try:
+            float(time_dir.name)
+        except ValueError:
+            continue
+        time_dirs.append(time_dir)
+    # Sort the time directories in numerical order
+    time_dirs.sort(key=lambda p: float(p.name))
+    # Process all the time directories
+    for time_dir in tqdm(time_dirs):
+        pickle_filepath = (
+                case_dir / f"{pickle_filepath_prefix}{time_dir.name}.p"
+                )
+        if pickle_filepath.is_file() and not force:
+            continue
+        else:
+            openfoam_to_pickle(
+                    timestamp=time_dir,
+                    pickle_filepath=pickle_filepath,
+                    kinetic_model_filepath=kinetic_model_filepath,
+                    include_computed_quantities=include_computed_quantities,
+                    force=force,
+                    )
+
+
 def main() -> None:
 
     parser = argparse.ArgumentParser(
@@ -271,7 +310,10 @@ def main() -> None:
             help='Convert from OpenFOAM to pickle',
             )
     parser_of2p.add_argument('timestamp', help='the timestamp to process')
-    parser_of2p.add_argument('pickle', help='the pickle file to write to')
+    parser_of2p.add_argument(
+            'pickle',
+            help='the pickle file to write to or the pickle prefix if timestamp is "all"',
+            )
     parser_of2p.add_argument(
             '-k',
             '--kinetics',
@@ -295,7 +337,7 @@ def main() -> None:
             help='Convert from pickle to OpenFOAM',
             )
     parser_p2of.add_argument('pickle', help='the pickle file to read')
-    parser_p2of.add_argument('timestamp', help='the timestamp to write to')
+    parser_p2of.add_argument('timestamp', help='the timestamp to write to or "all"')
     parser_p2of.add_argument(
             '-m',
             '--merge',
@@ -304,22 +346,33 @@ def main() -> None:
             )
 
     args = parser.parse_args()
-    timestamp = args.case_dir / args.timestamp
-    pickle_filepath = args.case_dir / args.pickle
 
     if args.command == 'of2p':
         if args.kinetics:
             kinetic_model_filepath = args.case_dir / args.kinetics
         else:
             kinetic_model_filepath = None
-        openfoam_to_pickle(
-                timestamp=timestamp,
-                pickle_filepath=pickle_filepath,
-                kinetic_model_filepath=kinetic_model_filepath,
-                include_computed_quantities=args.include_computed,
-                force=args.force,
-                )
+        if args.timestamp == 'all':
+            pickle_all_openfoam_times(
+                    case_dir=args.case_dir,
+                    kinetic_model_filepath=kinetic_model_filepath,
+                    include_computed_quantities=args.include_computed,
+                    pickle_filepath_prefix=args.pickle,
+                    force=args.force,
+                    )
+        else:
+            timestamp = args.case_dir / args.timestamp
+            pickle_filepath = args.case_dir / args.pickle
+            openfoam_to_pickle(
+                    timestamp=timestamp,
+                    pickle_filepath=pickle_filepath,
+                    kinetic_model_filepath=kinetic_model_filepath,
+                    include_computed_quantities=args.include_computed,
+                    force=args.force,
+                    )
     elif args.command == 'p2of':
+        timestamp = args.case_dir / args.timestamp
+        pickle_filepath = args.case_dir / args.pickle
         pickle_to_openfoam(
                 solution_pickle=pickle_filepath,
                 timestamp=timestamp,
