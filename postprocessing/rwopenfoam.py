@@ -86,16 +86,49 @@ def read_variable(file_path: Path) -> dict[str, typing.Any]:
     return data
 
 
+def read_species_list(kinetic_model_filepath: Path) -> list[str]:
+    found_species_list = False
+    num_species = None
+    species_list: list[str] = []
+    with open(kinetic_model_filepath, 'r') as kmfile:
+        for line in kmfile:
+            line = line.strip()
+            if line == 'species':
+                found_species_list = True
+            elif found_species_list:
+                if not num_species:
+                    num_species = int(line)
+                elif line == '(':
+                    continue
+                elif line in [')', ');']:
+                    break
+                else:
+                    species_list.append(line)
+    return species_list
+
+
 def openfoam_to_pickle(
     timestamp: Path,
     pickle_filepath: Path,
+    kinetic_model_filepath: typing.Optional[Path] = None,
     force: bool = False,
 ) -> None:
     solution: dict[str, npt.NDArray[np.float64] | float] = {}
+    # Get the list of species from the kinetic model
+    # This is done so that the species names can be prepended with a Y_
+    # This is useful for future scripts that want to extract the species and so
+    # can look for a common prefix
+    if kinetic_model_filepath:
+        species_list = read_species_list(kinetic_model_filepath)
+    else:
+        species_list = []
+    # Load the data from the timestamp
     for var_file in timestamp.iterdir():
         if var_file.is_dir():
             continue
         var = var_file.name
+        if species_list and var in species_list:
+            var = f"Y_{var}"
         solution[var] = read_variable(var_file)
     if not force and pickle_filepath.exists():
         raise FileExistsError(f"{pickle_filepath} already exists.")
