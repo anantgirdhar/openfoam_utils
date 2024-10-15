@@ -158,8 +158,6 @@ def compute_rates(ofdata):
 
 def main(force=False):
     time_dirs = process_openfoam_solution(force=False)
-    from time import sleep
-
     for time in tqdm(time_dirs, file=sys.stdout):
         if time == "0":
             continue
