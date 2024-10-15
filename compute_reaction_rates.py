@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 import pickle
-import sys
+import argparse
 import textwrap
 from pathlib import Path
 
@@ -7,47 +8,15 @@ import cantera as ct
 import numpy as np
 from tqdm import tqdm
 
-from rwopenfoam import openfoam_to_pickle, pickle_to_openfoam
 
-
-def process_openfoam_solution(force=False):
-    time_dirs = []
-
-    case_dir = Path(".")
-    for time_dir in case_dir.iterdir():
-        # Skip any non-time directories
-        if not time_dir.is_dir():
-            continue
-        try:
-            float(time_dir.name)
-        except ValueError:
-            continue
-        # Process each time directory
-        time_dirs.append(time_dir.name)
-        pickle_filepath = case_dir / f"solution_{time_dir.name}.p"
-        if pickle_filepath.is_file() and not force:
-            continue
-        else:
-            openfoam_to_pickle(time_dir, pickle_filepath, force=True)
-
-    time_dirs.sort(key=float)
-    return time_dirs
-
-
-def load_timestep(timestamp):
-    with open(f"solution_{timestamp}.p", "rb") as pfile:
-        data = pickle.load(pfile)
-    return data
-
-
-def write_timestep_pickle(pickle_filepath, timestamp, solution, force=False):
+def _write_timestep_pickle(pickle_filepath, timestamp, solution, force=False):
     if not force and pickle_filepath.is_file():
         raise FileExistsError(f"{pickle_filepath} already exists.")
     with open(pickle_filepath, "wb") as pfile:
         pickle.dump(solution, pfile)
 
 
-def get_value(ofdata, var, index):
+def _get_value(ofdata, var, index):
     try:
         iter(ofdata[var]["data"])
     except TypeError:
@@ -58,7 +27,7 @@ def get_value(ofdata, var, index):
         return ofdata[var]["data"][index]
 
 
-def verify_OF_cantera_consistency(ofdata):
+def _verify_OF_cantera_consistency(ofdata):
     # Load this data into cantera one grid point at a time and extract the
     # things we want
     gas = ct.Solution("gri30.yaml")
@@ -105,8 +74,8 @@ def verify_OF_cantera_consistency(ofdata):
         )
 
 
-def compute_rates(ofdata):
-    verify_OF_cantera_consistency(ofdata)
+def _compute_rates(ofdata):
+    _verify_OF_cantera_consistency(ofdata)
     cantera_species = [sp.name for sp in ct.Solution("gri30.yaml").species()]
     computed_data = {}
     # First create space for all the newly computed fields
@@ -128,9 +97,9 @@ def compute_rates(ofdata):
         }
     num_grid_points = len(ofdata["T"]["data"])
     for i in tqdm(range(num_grid_points)):
-        T = get_value(ofdata, "T", i)
-        p = get_value(ofdata, "p", i)
-        Y = np.array([get_value(ofdata, sp, i) for sp in cantera_species])
+        T = _get_value(ofdata, "T", i)
+        p = _get_value(ofdata, "p", i)
+        Y = np.array([_get_value(ofdata, sp, i) for sp in cantera_species])
         # Create a new solution object to be safe?
         # This might not be required but I wonder how much it hurts
         gas = ct.Solution("gri30.yaml")
@@ -156,19 +125,107 @@ def compute_rates(ofdata):
     return computed_data
 
 
-def main(force=False):
-    time_dirs = process_openfoam_solution(force=False)
-    for time in tqdm(time_dirs, file=sys.stdout):
-        if time == "0":
+def compute_and_write_rate_data(
+        *,
+        state_data_pickle: Path,
+        rate_data_pickle: Path,
+        force: bool = False,
+        ) -> None:
+    if rate_data_pickle.is_file() and not force:
+        raise FileExistsError(f'{rate_data_pickle} already exists.')
+    with open(state_data_pickle, 'rb') as pfile:
+        state_data = pickle.load(pfile)
+    rate_data = _compute_rates(state_data)
+    with open(rate_data_pickle, 'wb') as pfile:
+        pickle.dump(rate_data, pfile)
+
+
+def compute_and_write_all_rate_data(
+        *,
+        case_dir: Path,
+        state_data_pickle_prefix: str,
+        rate_data_pickle_prefix: str,
+        force: bool = False,
+        ) -> None:
+    # Create a list of the time directories that need to be processed
+    for state_data_pickle in tqdm(sorted(
+            case_dir.glob(f'{state_data_pickle_prefix}*.p'),
+            key=lambda p: float(p.stem.split('_')[-1]),
+            )):
+        rate_data_pickle = state_data_pickle.with_stem(
+                state_data_pickle.stem.replace(
+                    state_data_pickle_prefix,
+                    rate_data_pickle_prefix,
+                    )
+                )
+        # Skip the 0 time
+        if state_data_pickle.stem == f'{state_data_pickle_prefix}0':
             continue
-        pickle_filepath = Path(f"./computed_data_{time}.p")
-        if force or not pickle_filepath.is_file():
-            state_data = load_timestep(time)
-            rate_data = compute_rates(state_data)
-            write_timestep_pickle(pickle_filepath, time, rate_data, force=True)
-        pickle_to_openfoam(pickle_filepath, Path(".") / time, auto_merge=True)
-    return time_dirs
+        if rate_data_pickle.is_file() and not force:
+            continue
+        compute_and_write_rate_data(
+                state_data_pickle=state_data_pickle,
+                rate_data_pickle=rate_data_pickle,
+                )
+
+
+def main() -> None:
+
+    parser = argparse.ArgumentParser(
+            prog='compute_reaction_rates',
+            description='Compute reaction rates using Cantera',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            )
+    parser.add_argument(
+            '--case-dir',
+            type=Path,
+            default=Path('.'),
+            help='the OpenFOAM case directory',
+            )
+    parser.add_argument('timestamp', help='the timestamp to process or "all"')
+    parser.add_argument(
+            '-s',
+            '--solution-pickle-prefix',
+            default='ofsolution_',
+            help='prefix of the pickle file containing the OpenFOAM solution',
+            )
+    parser.add_argument(
+            '-r',
+            '--rate-pickle-prefix',
+            default='computed_',
+            help='prefix of the pickle file to write computed rates to',
+            )
+    parser.add_argument(
+            '-f',
+            '--force',
+            help='overwrite rate pickle if it already exists',
+            action='store_true',
+            )
+
+    args = parser.parse_args()
+
+    if args.timestamp == "all":
+        compute_and_write_all_rate_data(
+                case_dir=args.case_dir,
+                state_data_pickle_prefix=args.solution_pickle_prefix,
+                rate_data_pickle_prefix=args.rate_pickle_prefix,
+                force=args.force,
+                )
+    else:
+        state_data_pickle = (
+                args.case_dir
+                / f'{args.solution_pickle_prefix}{args.timestamp}.p'
+                )
+        rate_data_pickle = (
+                args.case_dir / f'{args.rate_pickle_prefix}{args.timestamp}.p'
+                )
+
+        compute_and_write_rate_data(
+                state_data_pickle=state_data_pickle,
+                rate_data_pickle=rate_data_pickle,
+                force=args.force,
+                )
 
 
 if __name__ == "__main__":
-    time_dirs = main(force=False)
+    main()
