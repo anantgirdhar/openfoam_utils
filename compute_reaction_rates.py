@@ -67,7 +67,7 @@ def _verify_OF_cantera_consistency(ofdata):
         )
 
 
-def _compute_rates(ofdata):
+def _compute_rates(ofdata, num_cells):
     _verify_OF_cantera_consistency(ofdata)
     cantera_species = [sp.name for sp in ct.Solution("gri30.yaml").species()]
     computed_data = {}
@@ -88,8 +88,7 @@ def _compute_rates(ofdata):
             "dimensions": [1, -1, -3, 0, 0, 0, 0],
             "data": [],
         }
-    num_grid_points = len(ofdata["T"]["data"])
-    for i in tqdm(range(num_grid_points)):
+    for i in tqdm(range(num_cells)):
         T = _get_value(ofdata, "T", i)
         p = _get_value(ofdata, "p", i)
         Y = np.array([_get_value(ofdata, sp, i) for sp in cantera_species])
@@ -128,9 +127,10 @@ def compute_and_write_rate_data(
         raise FileExistsError(f'{rate_data_pickle} already exists.')
     with open(state_data_pickle, 'rb') as pfile:
         state_data = pickle.load(pfile)
-    rate_data = _compute_rates(state_data)
+    rate_data = _compute_rates(state_data['data'], state_data['num_cells'])
     with open(rate_data_pickle, 'wb') as pfile:
-        pickle.dump(rate_data, pfile)
+        # TODO: Do we need to include any metadata with the rate data?
+        pickle.dump({'data': rate_data}, pfile)
 
 
 def compute_and_write_all_rate_data(

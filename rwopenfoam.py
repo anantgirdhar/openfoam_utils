@@ -4,6 +4,7 @@ import argparse
 import textwrap
 import typing
 from pathlib import Path
+import subprocess
 
 import numpy as np
 import numpy.typing as npt
@@ -43,7 +44,7 @@ def _sanitize_uniform_value(args: list[str]) -> float | tuple[float]:
         )
 
 
-def read_variable(file_path: Path) -> dict[str, typing.Any]:
+def read_variable(file_path: Path, num_cells: int) -> dict[str, typing.Any]:
     data: dict[str, typing.Any] = {
         "type": None,
         "dimensions": None,
@@ -70,6 +71,8 @@ def read_variable(file_path: Path) -> dict[str, typing.Any]:
             match line.split():
                 case [num] if not found_values_start and num_values is None:
                     num_values = int(num)
+                    if data['type'] in ['volScalarField', 'volVectorField']:
+                        assert num_values == num_cells, f'{file_path}: {num_values} == {num_cells}'
                 case ["("]:
                     found_values_start = True
                 case [")"] if found_values_start:
@@ -117,7 +120,7 @@ def openfoam_to_pickle(
     include_computed_quantities: bool = False,
     force: bool = False,
 ) -> None:
-    solution: dict[str, npt.NDArray[np.float64] | float] = {}
+    data: dict[str, npt.NDArray[np.float64] | float] = {}
     # Get the list of species from the kinetic model
     # This is done so that the species names can be prepended with a Y_
     # This is useful for future scripts that want to extract the species and so
@@ -126,6 +129,12 @@ def openfoam_to_pickle(
         species_list = read_species_list(kinetic_model_filepath)
     else:
         species_list = []
+    # Figure out the number of cells in the domain
+    num_cells = int(subprocess.run(
+            [r"checkMesh | grep '^\s*cells:' | cut -d: -f2 | tr -d ' '"],
+            shell=True,
+            stdout=subprocess.PIPE,
+            ).stdout.decode().strip())
     # Load the data from the timestamp
     for var_file in timestamp.iterdir():
         if var_file.is_dir():
@@ -135,9 +144,14 @@ def openfoam_to_pickle(
             continue
         if species_list and var in species_list:
             var = f"Y_{var}"
-        solution[var] = read_variable(var_file)
+        data[var] = read_variable(var_file, num_cells)
     if not force and pickle_filepath.exists():
         raise FileExistsError(f"{pickle_filepath} already exists.")
+    # Wrap the data in another dictionary containing some metadata as well
+    solution = {
+            'num_cells': num_cells,
+            'data': data,
+            }
     with open(pickle_filepath, "wb") as pfile:
         pickle.dump(solution, pfile)
 
@@ -246,7 +260,7 @@ def pickle_to_openfoam(
                 return
     else:
         timestamp.mkdir()
-    for var, values in data.items():
+    for var, values in data['data'].items():
         if (timestamp / var).is_file():
             print(f"{var} already exists in {timestamp}. Skipping.")
             continue
