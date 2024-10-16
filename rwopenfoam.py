@@ -378,6 +378,8 @@ def main() -> None:
                 timestamp=timestamp,
                 auto_merge=args.merge,
                 )
+    elif args.command is None:
+        parser.print_usage()
     else:
         raise ValueError(f'Unknown command {args.command}')
 
