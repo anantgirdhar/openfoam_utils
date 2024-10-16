@@ -9,13 +9,6 @@ import numpy as np
 from tqdm import tqdm
 
 
-def _write_timestep_pickle(pickle_filepath, timestamp, solution, force=False):
-    if not force and pickle_filepath.is_file():
-        raise FileExistsError(f"{pickle_filepath} already exists.")
-    with open(pickle_filepath, "wb") as pfile:
-        pickle.dump(solution, pfile)
-
-
 def _get_value(ofdata, var, index):
     try:
         iter(ofdata[var]["data"])
